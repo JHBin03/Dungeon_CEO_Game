@@ -10,7 +10,10 @@ const WALK_POSES = ["walk-1", "walk-2", "walk-1", "walk-2"];
 const REVIVE_MS = 8000;
 const ESCAPE_SEGMENTS = 3;
 const ESCAPE_HIT_CHANCE = 0.5;
+const STARTING_RAID_SIZE = 2;
+const STANDARD_RAID_SIZE = 4;
 const MAX_RAID_SIZE = 12;
+const STANDARD_HERO_STATS_LEVEL = 6;
 const PROMOTION_DAYS = 3;
 const PROMOTION_RATE = 0.20;
 const SAVE_KEY = "dungeon-ceo.save";
@@ -37,10 +40,10 @@ const HERO_CLASSES = [
   { name: "마법사", teleportChance: 0.25 },
 ].map((hero, index) => ({ ...hero, sprite: `hero-${index + 1}` }));
 const MONSTERS = [
-  { name: "슬라임",       hp: 28,  attack: 9,  hire: 35,  upkeep: 2,  resource: "stone",      output: 12 },
-  { name: "스켈레톤",     hp: 38,  attack: 12, hire: 70,  upkeep: 4,  resource: "iron",       output: 8 },
-  { name: "좀비",         hp: 43,  attack: 11, hire: 120, upkeep: 9,  resource: "darkMatter", output: 4 },
-  { name: "동굴 고블린",  hp: 54,  attack: 15, hire: 165, upkeep: 12, resource: "gold",       output: 100 },
+  { name: "슬라임",       hp: 36,  attack: 12, hire: 35,  upkeep: 2,  resource: "stone",      output: 12 },
+  { name: "스켈레톤",     hp: 46,  attack: 15, hire: 70,  upkeep: 4,  resource: "iron",       output: 8 },
+  { name: "좀비",         hp: 58,  attack: 13, hire: 120, upkeep: 9,  resource: "darkMatter", output: 4 },
+  { name: "동굴 고블린",  hp: 62,  attack: 17, hire: 165, upkeep: 12, resource: "gold",       output: 100 },
   { name: "그림자 늑대",  hp: 68,  attack: 19, hire: 220, upkeep: 16, resource: "stone",      output: 24 },
   { name: "오크 광전사",  hp: 85,  attack: 24, hire: 285, upkeep: 21, resource: "iron",       output: 18 },
   { name: "흑철 골렘",    hp: 105, attack: 30, hire: 370, upkeep: 27, resource: "darkMatter", output: 14 },
@@ -750,7 +753,8 @@ function expansionBlocker(cost) {
 }
 
 function raidProfile() {
-  const size = Math.min(MAX_RAID_SIZE, HERO_CLASSES.length + Math.floor((state.popularity + rewardPopularity()) / 2));
+  const baseSize = Math.min(STANDARD_RAID_SIZE, STARTING_RAID_SIZE + state.level - 1);
+  const size = Math.min(MAX_RAID_SIZE, baseSize + Math.floor((state.popularity + rewardPopularity()) / 2));
   const rewardTier = Math.floor(state.throneReward / 250);
   const infamyHonor = Math.min(Math.ceil(state.infamy / 4), Math.floor(size / 4));
   const honorCount = Math.min(infamyHonor + rewardTier, Math.floor(size / 2));
@@ -1335,15 +1339,16 @@ async function runRoute() {
   rollWorkshopAccidents();
   renderManagement();
   const route = buildRoute(state.floors);
-  const baseHp = (70 + (state.level - 1) * 6) * HEALTH_MULTIPLIER;
-  const baseAttack = 14 + (state.level - 1) * 2;
+  const earlyLevels = Math.max(0, STANDARD_HERO_STATS_LEVEL - state.level);
+  const baseHp = (70 + (state.level - 1) * 6 - earlyLevels * 4) * HEALTH_MULTIPLIER;
+  const baseAttack = 14 + (state.level - 1) * 2 - earlyLevels;
   const { size, honorCount, honorPower } = raidProfile();
   const rooms = route.slice(1, -1).map(({ id, label }) => [id, {
     label, repelled: new Set(), passed: new Set(), hitTrapTriggered: new Set(),
   }]);
   const raid = { active: new Set(), checkedGates: new Set(), rooms: new Map(rooms), bountyGold: 0, relics: 0 };
   const heroes = Array.from({ length: size }, (_, index) => {
-    const heroClass = HERO_CLASSES[index % HERO_CLASSES.length];
+    const heroClass = HERO_CLASSES[(index + state.day - 1) % HERO_CLASSES.length];
     const rotatedIndex = (index + state.day) % size;
     const honor = Math.floor((rotatedIndex + 1) * honorCount / size) > Math.floor(rotatedIndex * honorCount / size);
     const name = honor ? `명예 용사 · ${heroClass.name}` : heroClass.name;
